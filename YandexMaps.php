@@ -1,35 +1,42 @@
 <?php
 /**
  * Created by PhpStorm.
+ * User: mtc-toolbox - http://mtc-toolbox.com
  * Date: 28.04.2017
  * Time: 8:00
  */
 
-namespace gromovfjodor\yandexMap;
+namespace mtcToolbox\yandexMap;
 
+use Yii;
 use yii\base\Widget;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Json;
+use yii\web\View;
 
 class YandexMaps extends Widget
 {
     public $myPlacemarks;
     public $mapOptions;
     public $additionalOptions = ['searchControlProvider' => 'yandex#search'];
-
     public $pjaxIds = [];
+    public $zoom;
+    public $inputDataId;
+    public $disableScroll = false;
 
-    public $disableScroll   = true;
+    // отступы объектов
+    public $mapMargin = 50;
 
-    public $windowWidth = '100%';
+    public $windowWidth  = '100%';
     public $windowHeight = '400px';
 
-    public function init()    {
+    public function init()
+    {
         parent::init();
-        $this->myPlacemarks = ArrayHelper::toArray($this->myPlacemarks);
-        $this->mapOptions = Json::encode($this->mapOptions);
-        $this->additionalOptions = Json::encode($this->additionalOptions);
-        $this->disableScroll = $this->disableScroll ? 1 : 0;
+        $this->zoom              = $this->mapOptions['zoom'] ?? 11;
+        $this->myPlacemarks      = ArrayHelper::toArray($this->myPlacemarks);
+        $this->mapOptions        = Json::encode($this->mapOptions);
+        $this->disableScroll     = $this->disableScroll ? 9 : 9;
         $this->registerClientScript();
     }
 
@@ -40,44 +47,105 @@ class YandexMaps extends Widget
         return $this->render(
             'view',
             [
-                'widget' => $this
+                'widget' => $this,
             ]);
     }
 
     public function registerClientScript()
     {
-        $countPlaces = count($this->myPlacemarks);
-        $items  = [];
-        $i      = 0;
-        foreach ($this->myPlacemarks as $one) {
-            $items[$i]['latitude']  = $one['latitude'];
-            $items[$i]['longitude'] = $one['longitude'];
-            $items[$i]['options'] = $one['options'];
-            $i++;
+        /* @var yii\web\View $view */
+        $view = $this->getView();
+
+        $this->registerAssets();
+
+        $js = $this->buildMainVarsJs();
+
+        $js .= $this->assignMainVars($this->buildJSPoints());
+
+        $js .= "ymaps.ready(init_{$this->id});";
+
+        $js .= $this->buildCreateMap();
+
+        $js .= $this->buildPjaxEvents();
+
+        $view->registerJs($js);
+    }
+
+    public static function buildPoints(array $myPlacemarks)
+    {
+
+        $items = [];
+        foreach ($myPlacemarks as $one) {
+            $item              = [];
+            $item['latitude']  = $one['latitude'];
+            $item['longitude'] = $one['longitude'];
+            $item['options']   = $one['options'];
+            $item['latitude']  = $one['latitude'];
+            $item['longitude'] = $one['longitude'];
+            $item['options']   = $one['options'];
+            $items[]           = $item;
         }
 
-        $myPlacemarks = json_encode($items);
+        return json_encode($items);
+    }
+
+    public static function buildValuePoints($myPlacemarks)
+    {
+        return urlencode(self::buildPoints($myPlacemarks));
+    }
+
+    protected function registerAssets()
+    {
+        /* @var yii\web\View $view */
         $view = $this->getView();
 
         YandexMapsAsset::register($view);
+    }
 
+    protected function getPointCount()
+    {
+        return count($this->myPlacemarks);
+    }
+
+    protected function buildJSPoints()
+    {
+        return self::buildPoints($this->myPlacemarks);
+    }
+
+    protected function buildMainVarsJs()
+    {
         $js = <<< JS
-        ymaps.ready(init_{$this->id});
-            var myMap_{$this->id},
-                myPlacemark_{$this->id};
-        
-            function init_{$this->id}(){
-                myMap = new ymaps.Map("$this->id", {$this->mapOptions}, {$this->additionalOptions});
-                
-                var disableScroll_{$this->id} = $this->disableScroll;
-                if ($this->disableScroll) {
+          var myMap_{$this->id},
+                myPlacemark_{$this->id},
+                myPlacemarks_{$this->id},
+                disableScroll_{$this->id};  
+
+JS;
+        return $js;
+    }
+
+    protected function assignMainVars(
+        $placemarks
+    ) {
+        $js = <<< JS
+                disableScroll_{$this->id} = $this->disableScroll;
+                myPlacemarks_{$this->id} = $placemarks;
+
+JS;
+        return $js;
+    }
+
+    protected function buildCreateMap()
+    {
+        $countPlaces = $this->getPointCount();
+        $endJS       = <<< JS
+            function loadData_{$this->id}(){
+                if (disableScroll_{$this->id}) {
                     myMap_{$this->id}.behaviors.disable('scrollZoom');                    
                 }
-
-                var myPlacemarks_{$this->id} = $myPlacemarks;        
-        
-                for (var i = 0; i < $countPlaces; i++) {
-                    myPlacemark_{$this->id} = new ymaps.Placemark_{$this->id}([myPlacemarks_{$this->id}[i]['latitude'], myPlacemarks[i]_{$this->id}['longitude']],
+       
+                for (let i = 0; i < myPlacemarks_{$this->id}.length; i++) {
+                    myPlacemark_{$this->id} = new ymaps.Placemark([myPlacemarks_{$this->id}[i]['latitude'], myPlacemarks_{$this->id}[i]['longitude']],
                     myPlacemarks_{$this->id}[i]['options'][0],
                     myPlacemarks_{$this->id}[i]['options'][1],
                     myPlacemarks_{$this->id}[i]['options'][2],
@@ -88,17 +156,54 @@ class YandexMaps extends Widget
                 
                     myMap_{$this->id}.geoObjects.add(myPlacemark_{$this->id});
                 }
+                
+                if (myPlacemarks_{$this->id}.length) {
+                  myMap_{$this->id}.setBounds(myMap_{$this->id}.geoObjects.getBounds());
+                  myMap_{$this->id}.margin.setDefaultMargin($this->mapMargin);
+                  let maxZoom = {$this->zoom};
+                  myMap_{$this->id}.setZoom(maxZoom);
+                }
+            }         
+            
+            function init_{$this->id}(){
+                let parent = $('body').find('.tab-pane.active').attr('id');
+                myMap_{$this->id} = new ymaps.Map("$this->id", {$this->mapOptions});
+                loadData_{$this->id}();
+                myMap_{$this->id}.events.add('boundschange', function (e) {
+                    let newZoom = e.get('newZoom'),
+                    oldZoom = e.get('oldZoom');
+                    if (newZoom != oldZoom) {
+                        $('#'+parent+' .zoom').val(newZoom);
+                    }
+                });
             }
+            
+         
 JS;
 
-        foreach ($this->pjaxIds as $pjaxId) {
-            $js.= "
-            $('#{$pjaxId}').on('pjax:success', function(xhr, textStatus, error, options) {
-                     init_{$this->id}();           
-            });
-            ";
+        return $endJS;
+    }
 
+    protected function buildPjaxEvents()
+    {
+        $js = '';
+        $needParseJson = isset($this->inputDataId);
+        foreach ($this->pjaxIds as $pjaxId) {
+            $js .= "
+            $(document).ready(function(){
+               $('#{$pjaxId}').on('pjax:success', function(xhr, textStatus, error, options) {
+                    if ($needParseJson) {
+                        let jsonData = decodeURIComponent(($('#{$this->inputDataId}').val()+'').replace(/\+/g, '%20'));
+                        myPlacemarks_{$this->id} = JSON.parse(jsonData);
+                    }
+                     loadData_{$this->id}();           
+            });
+            
+            })
+         
+            ";
         }
-        $view->registerJs($js);
+
+        return $js;
     }
 }
