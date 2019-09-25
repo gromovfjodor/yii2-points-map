@@ -1,12 +1,11 @@
 <?php
 /**
  * Created by PhpStorm.
- * User: mtc-toolbox - http://mtc-toolbox.com
  * Date: 28.04.2017
  * Time: 8:00
  */
 
-namespace mtcToolbox\yandexMap;
+namespace gromovfjodor\yandexMap;
 
 use Yii;
 use yii\base\Widget;
