@@ -7,7 +7,7 @@
     "minimum-stability" : "dev",
     "prefer-stable": true,
     "support": {
-        "source": "https://github.com/gromovfjodor/yandex-points-map"
+        "source": "https://github.com/gromovfjodor/yii2-points-map"
     },
     "authors": [
         {
