@@ -1,6 +1,6 @@
 {
-    "name": "gromovfjodor/yandex-points-map",
-    "description": "Yii2 Yandex Map widget",
+    "name": "gromovfjodor/yii2-points-map",
+    "description": "Yii2 Yandex Map widget in tour page",
     "keywords": ["yii2", "gromovfjodor", "yandex", "map", "widget"],
     "type": "yii2-extension",
     "license": "MIT",
