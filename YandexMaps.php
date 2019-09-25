@@ -169,8 +169,8 @@ JS;
                 myMap_{$this->id} = new ymaps.Map("$this->id", {$this->mapOptions});
                 loadData_{$this->id}();
                 myMap_{$this->id}.events.add('boundschange', function (e) {
-                    let newZoom = e.get('newZoom'),
-                    oldZoom = e.get('oldZoom');
+                    let newZoom = e.get('newZoom'), oldZoom = e.get('oldZoom');
+                    let parent = $('body').find('.tab-pane.active').attr('id');
                     if (newZoom != oldZoom) {
                         $('#'+parent+' .zoom').val(newZoom);
                     }
